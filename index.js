@@ -6,7 +6,6 @@ const version = require("./package.json").version;
 const printAstToDoc = require("./src/printer").printAstToDoc;
 const printDocToString = require("./src/doc-printer").printDocToString;
 const normalizeOptions = require("./src/options").normalize;
-const parser = require("./src/parser");
 const printDocToDebug = require("./src/doc-debug").printDocToDebug;
 
 function guessLineEnding(text) {
@@ -21,11 +20,11 @@ function parse(text, opts) {
   let parseFunction;
 
   if (opts.parser === "flow") {
-    parseFunction = parser.parseWithFlow;
+    parseFunction = require('./src/parsers/flow-parser');
   } else if (opts.parser === "typescript") {
-    parseFunction = parser.parseWithTypeScript;
+    parseFunction = require('./src/parsers/typescript-parser');
   } else {
-    parseFunction = parser.parseWithBabylon;
+    parseFunction = require('./src/parsers/babylon-parser');
   }
 
   try {
