@@ -19,7 +19,8 @@
     "get-stdin": "5.0.1",
     "glob": "7.1.1",
     "jest-validate": "20.0.0",
-    "minimist": "1.2.0"
+    "minimist": "1.2.0",
+    "webpack": "^2.5.1"
   },
   "devDependencies": {
     "diff": "3.2.0",
@@ -53,7 +54,11 @@
     "testPathIgnorePatterns": [
       "tests/new_react",
       "tests/more_react",
+<<<<<<< HEAD
       "tests/typescript_nosemi/jsfmt.spec.js",
+=======
+      "see https://github.com/eslint/typescript-eslint-parser/issues/269",
+>>>>>>> 3335a830... Build rollup
       "tests/typescript/conformance/types/abstractKeyword/jsfmt.spec.js",
       "tests/typescript/conformance/classes/classDeclarations/classHeritageSpecification/jsfmt.spec.js",
       "tests/typescript/compiler/jsfmt.spec.js",
