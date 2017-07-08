@@ -10,11 +10,7 @@ const rootDir = path.join(__dirname, "..", "..");
 const docs = path.join(rootDir, "website/static/lib");
 const parsers = [
   "babylon",
-  "flow",
-  "typescript",
-  "graphql",
   "postcss",
-  "parse5",
   "json"
 ];
 

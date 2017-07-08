@@ -15,6 +15,20 @@ function _interopDefault(ex) {
 var require$$0 = _interopDefault(require('assert'));
 var path = _interopDefault(require('path'));
 
+var index$2 = function index$2(x) {
+  if (typeof x !== 'string') {
+    throw new TypeError('Expected a string, got ' + (typeof x === 'undefined' ? 'undefined' : _typeof(x)));
+  }
+
+  // Catches EFBBBF (UTF-8 BOM) because the buffer-to-string
+  // conversion translates it to FEFF (UTF-16 BOM)
+  if (x.charCodeAt(0) === 0xFEFF) {
+    return x.slice(1);
+  }
+
+  return x;
+};
+
 function assertDoc(val) {
   if (!(typeof val === "string" || val != null && typeof val.type === "string")) {
     throw new Error("Value " + JSON.stringify(val) + " is not a valid document");
@@ -90,7 +104,7 @@ var line = { type: "line" };
 var softline = { type: "line", soft: true };
 var hardline$1 = concat$1([{ type: "line", hard: true }, breakParent$1]);
 var literalline = concat$1([{ type: "line", hard: true, literal: true }, breakParent$1]);
-var cursor$1 = { type: "cursor", placeholder: Symbol() };
+var cursor$1 = { type: "cursor", placeholder: Symbol("cursor") };
 
 function join$1(sep, arr) {
   var res = [];
@@ -431,6 +445,61 @@ function getPrecedence(op) {
   return PRECEDENCE[op];
 }
 
+var equalityOperators = {
+  "==": true,
+  "!=": true,
+  "===": true,
+  "!==": true
+};
+var multiplicativeOperators = {
+  "*": true,
+  "/": true,
+  "%": true
+};
+var bitwiseOperators = {
+  ">>": true,
+  ">>>": true,
+  "<<": true,
+  "|": true,
+  "^": true,
+  "&": true
+};
+
+function shouldFlatten(parentOp, nodeOp) {
+  if (getPrecedence(nodeOp) !== getPrecedence(parentOp)) {
+    return false;
+  }
+
+  // ** is right-associative
+  // x ** y ** z --> x ** (y ** z)
+  if (parentOp === "**") {
+    return false;
+  }
+
+  // x == y == z --> (x == y) == z
+  if (equalityOperators[parentOp] && equalityOperators[nodeOp]) {
+    return false;
+  }
+
+  // x * y % z --> (x * y) % z
+  if (nodeOp === "%" && multiplicativeOperators[parentOp] || parentOp === "%" && multiplicativeOperators[nodeOp]) {
+    return false;
+  }
+
+  // x << y << z --> (x << y) << z
+  if (bitwiseOperators[parentOp] && bitwiseOperators[nodeOp] && (
+  // Flatten x | y | z
+  nodeOp !== "|" || parentOp !== "|")) {
+    return false;
+  }
+
+  return true;
+}
+
+function isBitwiseOperator(operator) {
+  return !!bitwiseOperators[operator];
+}
+
 // Tests if an expression starts with `{`, or (if forbidFunctionAndClass holds) `function` or `class`.
 // Will be overzealous if there's already necessary grouping parentheses.
 function startsWithNoLookaheadToken(node, forbidFunctionAndClass) {
@@ -509,6 +578,8 @@ function getAlignmentSize(value, tabWidth, startIndex) {
 
 var util$2 = {
   getPrecedence: getPrecedence,
+  shouldFlatten: shouldFlatten,
+  isBitwiseOperator: isBitwiseOperator,
   isExportDeclaration: isExportDeclaration,
   getParentExportDeclaration: getParentExportDeclaration,
   getPenultimate: getPenultimate,
@@ -598,11 +669,11 @@ function getSortedChildNodes(node, text, resultArray) {
 // least one of which is guaranteed to be defined.
 function decorateComment(node, comment, text) {
   var childNodes = getSortedChildNodes(node, text);
-  var precedingNode = void 0,
-      followingNode = void 0;
+  var precedingNode = void 0;
+  var followingNode = void 0;
   // Time to dust off the old binary search robes and wizard hat.
-  var left = 0,
-      right = childNodes.length;
+  var left = 0;
+  var right = childNodes.length;
   while (left < right) {
     var middle = left + right >> 1;
     var child = childNodes[middle];
@@ -1285,15 +1356,16 @@ var comments$1 = {
 
 var name = "prettier";
 var version$1 = "1.5.2";
-var description = "Prettier is an opinionated JavaScript formatter";
+var description = "Prettier is an opinionated code formatter";
 var bin = { "prettier": "./bin/prettier.js" };
 var repository = "prettier/prettier";
+var homepage = "https://prettier.io";
 var author = "James Long";
 var license = "MIT";
 var main = "./index.js";
-var dependencies = { "babel-code-frame": "7.0.0-alpha.12", "babylon": "7.0.0-beta.13", "chalk": "1.1.3", "diff": "3.2.0", "esutils": "2.0.2", "flow-parser": "0.47.0", "get-stream": "3.0.0", "glob": "7.1.2", "graphql": "0.10.1", "jest-validate": "20.0.3", "json-to-ast": "2.0.0-alpha1.2", "minimist": "1.2.0", "parse5": "3.0.2", "postcss": "^6.0.1", "postcss-less": "^1.0.0", "postcss-media-query-parser": "0.2.3", "postcss-scss": "1.0.0", "postcss-selector-parser": "2.2.3", "postcss-values-parser": "git://github.com/shellscape/postcss-values-parser.git#5e351360479116f3fe309602cdd15b0a233bc29f", "typescript": "2.5.0-dev.20170617", "typescript-eslint-parser": "git://github.com/eslint/typescript-eslint-parser.git#cfddbfe3ebf550530aef2f1c6c4ea1d9e738d9c1" };
-var devDependencies = { "babel-cli": "6.24.1", "babel-preset-es2015": "6.24.1", "cross-spawn": "5.1.0", "eslint": "4.1.1", "eslint-friendly-formatter": "3.0.0", "eslint-plugin-prettier": "2.1.2", "jest": "20.0.0", "mkdirp": "^0.5.1", "prettier": "1.4.2", "rimraf": "2.6.1", "rollup": "0.41.1", "rollup-plugin-commonjs": "7.0.0", "rollup-plugin-json": "2.1.0", "rollup-plugin-node-builtins": "2.0.0", "rollup-plugin-node-globals": "1.1.0", "rollup-plugin-node-resolve": "2.0.0", "rollup-plugin-replace": "1.1.1", "shelljs": "0.7.8", "sw-toolbox": "3.6.0", "uglify-es": "3.0.15", "webpack": "2.6.1" };
-var scripts = { "test": "jest", "test-integration": "jest tests_integration", "lint": "EFF_NO_LINK_RULES=true eslint . --format 'node_modules/eslint-friendly-formatter'", "build": "./scripts/build/build.js" };
+var dependencies = { "babel-code-frame": "7.0.0-alpha.12", "babylon": "7.0.0-beta.13", "chalk": "2.0.1", "diff": "3.2.0", "esutils": "2.0.2", "flow-parser": "0.47.0", "get-stream": "3.0.0", "globby": "^6.1.0", "graphql": "0.10.1", "jest-validate": "20.0.3", "json-to-ast": "2.0.0-alpha1.2", "minimist": "1.2.0", "parse5": "3.0.2", "postcss": "^6.0.1", "postcss-less": "^1.0.0", "postcss-media-query-parser": "0.2.3", "postcss-scss": "1.0.0", "postcss-selector-parser": "2.2.3", "postcss-values-parser": "git://github.com/shellscape/postcss-values-parser.git#5e351360479116f3fe309602cdd15b0a233bc29f", "strip-bom": "3.0.0", "typescript": "2.5.0-dev.20170617", "typescript-eslint-parser": "git://github.com/eslint/typescript-eslint-parser.git#cfddbfe3ebf550530aef2f1c6c4ea1d9e738d9c1" };
+var devDependencies = { "babel-cli": "6.24.1", "babel-preset-es2015": "6.24.1", "cross-env": "5.0.1", "cross-spawn": "5.1.0", "eslint": "4.1.1", "eslint-friendly-formatter": "3.0.0", "eslint-plugin-import": "2.6.1", "eslint-plugin-prettier": "2.1.2", "eslint-plugin-react": "7.1.0", "jest": "20.0.0", "mkdirp": "^0.5.1", "prettier": "1.5.2", "rimraf": "2.6.1", "rollup": "0.41.1", "rollup-plugin-commonjs": "7.0.0", "rollup-plugin-json": "2.1.0", "rollup-plugin-node-builtins": "2.0.0", "rollup-plugin-node-globals": "1.1.0", "rollup-plugin-node-resolve": "2.0.0", "rollup-plugin-replace": "1.1.1", "shelljs": "0.7.8", "sw-toolbox": "3.6.0", "uglify-es": "3.0.15", "webpack": "2.6.1" };
+var scripts = { "test": "jest", "test-integration": "jest tests_integration", "lint": "cross-env EFF_NO_LINK_RULES=true eslint . --format node_modules/eslint-friendly-formatter", "build": "./scripts/build/build.js" };
 var jest = { "setupFiles": ["<rootDir>/tests_config/run_spec.js"], "snapshotSerializers": ["<rootDir>/tests_config/raw-serializer.js"], "testRegex": "jsfmt\\.spec\\.js$|__tests__/.*\\.js$", "testPathIgnorePatterns": ["tests/new_react", "tests/more_react"] };
 var _package = {
   name: name,
@@ -1301,6 +1373,7 @@ var _package = {
   description: description,
   bin: bin,
   repository: repository,
+  homepage: homepage,
   author: author,
   license: license,
   main: main,
@@ -1316,6 +1389,7 @@ var _package$1 = Object.freeze({
   description: description,
   bin: bin,
   repository: repository,
+  homepage: homepage,
   author: author,
   license: license,
   main: main,
@@ -1494,7 +1568,8 @@ FastPath$1.prototype.needsParens = function (options) {
     return true;
   }
 
-  if (parent.type === "ArrowFunctionExpression" && parent.body === node && startsWithNoLookaheadToken$1(node, /* forbidFunctionAndClass */false) || parent.type === "ExpressionStatement" && startsWithNoLookaheadToken$1(node, /* forbidFunctionAndClass */true)) {
+  if (parent.type === "ArrowFunctionExpression" && parent.body === node && node.type !== "SequenceExpression" && // these have parens added anyway
+  startsWithNoLookaheadToken$1(node, /* forbidFunctionAndClass */false) || parent.type === "ExpressionStatement" && startsWithNoLookaheadToken$1(node, /* forbidFunctionAndClass */true)) {
     return true;
   }
 
@@ -1595,7 +1670,7 @@ FastPath$1.prototype.needsParens = function (options) {
         case "BinaryExpression":
         case "LogicalExpression":
           {
-            if (!node.operator) {
+            if (!node.operator && node.type !== "TSTypeAssertionExpression") {
               return true;
             }
 
@@ -1604,16 +1679,12 @@ FastPath$1.prototype.needsParens = function (options) {
             var no = node.operator;
             var np = util$5.getPrecedence(no);
 
-            if (po === "||" && no === "&&") {
-              return true;
-            }
-
             if (pp > np) {
               return true;
             }
 
-            if (no === "**" && po === "**") {
-              return name === "left";
+            if (po === "||" && no === "&&") {
+              return true;
             }
 
             if (pp === np && name === "right") {
@@ -1621,9 +1692,13 @@ FastPath$1.prototype.needsParens = function (options) {
               return true;
             }
 
+            if (pp === np && !util$5.shouldFlatten(po, no)) {
+              return true;
+            }
+
             // Add parenthesis when working with binary operators
             // It's not stricly needed but helps with code understanding
-            if (["|", "^", "&", ">>", "<<", ">>>"].indexOf(po) !== -1) {
+            if (util$5.isBitwiseOperator(po)) {
               return true;
             }
 
@@ -1660,6 +1735,11 @@ FastPath$1.prototype.needsParens = function (options) {
 
         case "ExpressionStatement":
           return name !== "expression";
+
+        case "ArrowFunctionExpression":
+          // We do need parentheses, but SequenceExpressions are handled
+          // specially when printing bodies of arrow functions.
+          return name !== "body";
 
         default:
           // Otherwise err on the side of overparenthesization, adding
@@ -2007,7 +2087,7 @@ function createCommonjsModule(fn, module) {
   return module = { exports: {} }, fn(module, module.exports), module.exports;
 }
 
-var index$4 = createCommonjsModule(function (module, exports) {
+var index$6 = createCommonjsModule(function (module, exports) {
   // Copyright 2014, 2015, 2016, 2017 Simon Lydell
   // License: MIT. (See LICENSE.)
 
@@ -2029,16 +2109,16 @@ var index$4 = createCommonjsModule(function (module, exports) {
 var ast = createCommonjsModule(function (module) {
   /*
     Copyright (C) 2013 Yusuke Suzuki <utatane.tea@gmail.com>
-
+  
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:
-
+  
       * Redistributions of source code must retain the above copyright
         notice, this list of conditions and the following disclaimer.
       * Redistributions in binary form must reproduce the above copyright
         notice, this list of conditions and the following disclaimer in the
         documentation and/or other materials provided with the distribution.
-
+  
     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS'
     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
     IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -2183,16 +2263,16 @@ var code = createCommonjsModule(function (module) {
   /*
     Copyright (C) 2013-2014 Yusuke Suzuki <utatane.tea@gmail.com>
     Copyright (C) 2014 Ivan Nikulin <ifaaan@gmail.com>
-
+  
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:
-
+  
       * Redistributions of source code must retain the above copyright
         notice, this list of conditions and the following disclaimer.
       * Redistributions in binary form must reproduce the above copyright
         notice, this list of conditions and the following disclaimer in the
         documentation and/or other materials provided with the distribution.
-
+  
     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
     IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -2313,16 +2393,16 @@ var code = createCommonjsModule(function (module) {
 var keyword = createCommonjsModule(function (module) {
   /*
     Copyright (C) 2013 Yusuke Suzuki <utatane.tea@gmail.com>
-
+  
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:
-
+  
       * Redistributions of source code must retain the above copyright
         notice, this list of conditions and the following disclaimer.
       * Redistributions in binary form must reproduce the above copyright
         notice, this list of conditions and the following disclaimer in the
         documentation and/or other materials provided with the distribution.
-
+  
     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
     IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -2483,16 +2563,16 @@ var keyword = createCommonjsModule(function (module) {
 var utils = createCommonjsModule(function (module, exports) {
   /*
     Copyright (C) 2013 Yusuke Suzuki <utatane.tea@gmail.com>
-
+  
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions are met:
-
+  
       * Redistributions of source code must retain the above copyright
         notice, this list of conditions and the following disclaimer.
       * Redistributions in binary form must reproduce the above copyright
         notice, this list of conditions and the following disclaimer in the
         documentation and/or other materials provided with the distribution.
-
+  
     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
     AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
     IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -2517,7 +2597,7 @@ var utils = createCommonjsModule(function (module, exports) {
 
 var matchOperatorsRe = /[|\\{}()[\]^$+*?.]/g;
 
-var index$8 = function index$8(str) {
+var index$10 = function index$10(str) {
   if (typeof str !== 'string') {
     throw new TypeError('Expected a string');
   }
@@ -2525,7 +2605,7 @@ var index$8 = function index$8(str) {
   return str.replace(matchOperatorsRe, '\\$&');
 };
 
-var index$10 = createCommonjsModule(function (module) {
+var index$12 = createCommonjsModule(function (module) {
   'use strict';
 
   function assembleStyles() {
@@ -2593,20 +2673,20 @@ var index$10 = createCommonjsModule(function (module) {
   });
 });
 
-var index$14 = function index$14() {
+var index$16 = function index$16() {
   return (/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-PRZcf-nqry=><]/g
   );
 };
 
-var ansiRegex = index$14();
+var ansiRegex = index$16();
 
-var index$12 = function index$12(str) {
+var index$14 = function index$14(str) {
   return typeof str === 'string' ? str.replace(ansiRegex, '') : str;
 };
 
-var ansiRegex$1 = index$14;
+var ansiRegex$1 = index$16;
 var re = new RegExp(ansiRegex$1().source); // remove the `g` flag
-var index$16 = re.test.bind(re);
+var index$18 = re.test.bind(re);
 
 var argv = process.argv;
 
@@ -2617,7 +2697,7 @@ var hasFlag = function hasFlag(flag) {
   return pos !== -1 && (terminator !== -1 ? pos < terminator : true);
 };
 
-var index$18 = function () {
+var index$20 = function () {
   if ('FORCE_COLOR' in process.env) {
     return true;
   }
@@ -2653,11 +2733,11 @@ var index$18 = function () {
   return false;
 }();
 
-var escapeStringRegexp = index$8;
-var ansiStyles = index$10;
-var stripAnsi = index$12;
-var hasAnsi = index$16;
-var supportsColor = index$18;
+var escapeStringRegexp = index$10;
+var ansiStyles = index$12;
+var stripAnsi = index$14;
+var hasAnsi = index$18;
+var supportsColor = index$20;
 var defineProps = Object.defineProperties;
 var isSimpleWindowsTerm = process.platform === 'win32' && !/^xterm/i.test(process.env.TERM);
 
@@ -2763,18 +2843,18 @@ function init() {
 
 defineProps(Chalk.prototype, init());
 
-var index$6 = new Chalk();
+var index$8 = new Chalk();
 var styles_1 = ansiStyles;
 var hasColor = hasAnsi;
 var stripColor = stripAnsi;
 var supportsColor_1 = supportsColor;
 
-index$6.styles = styles_1;
-index$6.hasColor = hasColor;
-index$6.stripColor = stripColor;
-index$6.supportsColor = supportsColor_1;
+index$8.styles = styles_1;
+index$8.hasColor = hasColor;
+index$8.stripColor = stripColor;
+index$8.supportsColor = supportsColor_1;
 
-var index$2 = createCommonjsModule(function (module, exports) {
+var index$4 = createCommonjsModule(function (module, exports) {
   "use strict";
 
   exports.__esModule = true;
@@ -2803,7 +2883,7 @@ var index$2 = createCommonjsModule(function (module, exports) {
     return codeFrameColumns(rawLines, location, opts);
   };
 
-  var _jsTokens = index$4;
+  var _jsTokens = index$6;
 
   var _jsTokens2 = _interopRequireDefault(_jsTokens);
 
@@ -2811,7 +2891,7 @@ var index$2 = createCommonjsModule(function (module, exports) {
 
   var _esutils2 = _interopRequireDefault(_esutils);
 
-  var _chalk = index$6;
+  var _chalk = index$8;
 
   var _chalk2 = _interopRequireDefault(_chalk);
 
@@ -3001,20 +3081,8 @@ var index$2 = createCommonjsModule(function (module, exports) {
 var path$1 = path;
 
 var parsers = {
-  get flow() {
-    return eval("require")("./parser-flow");
-  },
-  get graphql() {
-    return eval("require")("./parser-graphql");
-  },
-  get parse5() {
-    return eval("require")("./parser-parse5");
-  },
   get babylon() {
     return eval("require")("./parser-babylon");
-  },
-  get typescript() {
-    return eval("require")("./parser-typescript");
   },
   get postcss() {
     return eval("require")("./parser-postcss");
@@ -3050,7 +3118,7 @@ function parse(text, opts) {
     var loc = error.loc;
 
     if (loc) {
-      var codeFrame = index$2;
+      var codeFrame = index$4;
       error.codeFrame = codeFrame.codeFrameColumns(text, loc, {
         highlightCode: true
       });
@@ -3785,7 +3853,7 @@ function genericPrint$3(path$$1, options, print) {
           var leading = parent.type === "selector-selector" && parent.nodes[0] === n ? "" : line$4;
           return concat$6([leading, n.value, " "]);
         }
-        return n.value;
+        return n.value.trim() || line$4;
       }
     case "selector-universal":
       {
@@ -4019,7 +4087,7 @@ function genericPrint(path$$1, options, printPath, args) {
         return multiparser.printSubtree(next, path$$1, printPath, options);
       } catch (error) {
         if (process.env.PRETTIER_DEBUG) {
-          const e = new Error(error);
+          var e = new Error(error);
           e.parser = next.options.parser;
           throw e;
         }
@@ -4265,12 +4333,17 @@ function genericPrintNoParens(path$$1, options, print, args) {
         var body = path$$1.call(function (bodyPath) {
           return print(bodyPath, args);
         }, "body");
-        var collapsed = concat$2([concat$2(parts), " ", body]);
 
         // We want to always keep these types of nodes on the same line
         // as the arrow.
-        if (!hasLeadingOwnLineComment(options.originalText, n.body) && (n.body.type === "ArrayExpression" || n.body.type === "ObjectExpression" || n.body.type === "BlockStatement" || n.body.type === "SequenceExpression" || isTemplateOnItsOwnLine(n.body, options.originalText) || n.body.type === "ArrowFunctionExpression")) {
-          return group$1(collapsed);
+        if (!hasLeadingOwnLineComment(options.originalText, n.body) && (n.body.type === "ArrayExpression" || n.body.type === "ObjectExpression" || n.body.type === "BlockStatement" || isTemplateOnItsOwnLine(n.body, options.originalText) || n.body.type === "ArrowFunctionExpression")) {
+          return group$1(concat$2([concat$2(parts), " ", body]));
+        }
+
+        // We handle sequence expressions as the body of arrows specially,
+        // so that the required parentheses end up on their own lines.
+        if (n.body.type === "SequenceExpression") {
+          return group$1(concat$2([concat$2(parts), group$1(concat$2([" (", indent$2(concat$2([softline$1, body])), softline$1, ")"]))]));
         }
 
         // if the arrow function is expanded as last argument, we are adding a
@@ -4504,7 +4577,7 @@ function genericPrintNoParens(path$$1, options, print, args) {
       if (n.argument) {
         if (returnArgumentHasLeadingComment(options, n.argument)) {
           parts.push(concat$2([" (", indent$2(concat$2([softline$1, path$$1.call(print, "argument")])), line$1, ")"]));
-        } else if (n.argument.type === "LogicalExpression" || n.argument.type === "BinaryExpression") {
+        } else if (n.argument.type === "LogicalExpression" || n.argument.type === "BinaryExpression" || n.argument.type === "SequenceExpression") {
           parts.push(group$1(concat$2([ifBreak$1(" (", " "), indent$2(concat$2([softline$1, path$$1.call(print, "argument")])), softline$1, ifBreak$1(")")])));
         } else {
           parts.push(" ", path$$1.call(print, "argument"));
@@ -4702,13 +4775,22 @@ function genericPrintNoParens(path$$1, options, print, args) {
       return concat$2(parts);
     case "SequenceExpression":
       {
-        var _parent6 = path$$1.getParentNode();
-        var _shouldInline = _parent6.type === "ReturnStatement" || _parent6.type === "ForStatement" || _parent6.type === "ExpressionStatement";
-
-        if (_shouldInline) {
-          return join$2(", ", path$$1.map(print, "expressions"));
+        var _parent6 = path$$1.getParentNode(0);
+        if (_parent6.type === "ExpressionStatement" || _parent6.type === "ForStatement") {
+          // For ExpressionStatements and for-loop heads, which are among
+          // the few places a SequenceExpression appears unparenthesized, we want
+          // to indent expressions after the first.
+          var _parts3 = [];
+          path$$1.each(function (p) {
+            if (p.getName() === 0) {
+              _parts3.push(print(p));
+            } else {
+              _parts3.push(",", indent$2(concat$2([line$1, print(p)])));
+            }
+          }, "expressions");
+          return group$1(concat$2(_parts3));
         }
-        return group$1(concat$2([indent$2(concat$2([softline$1, join$2(concat$2([",", line$1]), path$$1.map(print, "expressions"))])), softline$1]));
+        return group$1(concat$2([join$2(concat$2([",", line$1]), path$$1.map(print, "expressions"))]));
       }
     case "ThisExpression":
       return "this";
@@ -5005,9 +5087,9 @@ function genericPrintNoParens(path$$1, options, print, args) {
       {
         var _parent8 = path$$1.getParentNode(0);
 
-        var _shouldInline2 = n.expression.type === "ArrayExpression" || n.expression.type === "ObjectExpression" || n.expression.type === "ArrowFunctionExpression" || n.expression.type === "CallExpression" || n.expression.type === "FunctionExpression" || n.expression.type === "JSXEmptyExpression" || n.expression.type === "TemplateLiteral" || n.expression.type === "TaggedTemplateExpression" || _parent8.type === "JSXElement" && (n.expression.type === "ConditionalExpression" || isBinaryish(n.expression));
+        var _shouldInline = n.expression.type === "ArrayExpression" || n.expression.type === "ObjectExpression" || n.expression.type === "ArrowFunctionExpression" || n.expression.type === "CallExpression" || n.expression.type === "FunctionExpression" || n.expression.type === "JSXEmptyExpression" || n.expression.type === "TemplateLiteral" || n.expression.type === "TaggedTemplateExpression" || _parent8.type === "JSXElement" && (n.expression.type === "ConditionalExpression" || isBinaryish(n.expression));
 
-        if (_shouldInline2) {
+        if (_shouldInline) {
           return group$1(concat$2(["{", path$$1.call(print, "expression"), lineSuffixBoundary$1, "}"]));
         }
 
@@ -5988,7 +6070,7 @@ function printFunctionParams(path$$1, print, options, expandArg, printTypeParams
 
   var flowTypeAnnotations = ["AnyTypeAnnotation", "NullLiteralTypeAnnotation", "GenericTypeAnnotation", "ThisTypeAnnotation", "NumberTypeAnnotation", "VoidTypeAnnotation", "NullTypeAnnotation", "EmptyTypeAnnotation", "MixedTypeAnnotation", "BooleanTypeAnnotation", "BooleanLiteralTypeAnnotation", "StringTypeAnnotation"];
 
-  var isFlowShorthandWithOneArg = (isObjectTypePropertyAFunction(parent) || isTypeAnnotationAFunction(parent) || parent.type === "TypeAlias" || parent.type === "UnionTypeAnnotation" || parent.type === "TSUnionType" || parent.type === "IntersectionTypeAnnotation" || parent.type === "FunctionTypeAnnotation" && parent.returnType === fun) && fun[paramsField].length === 1 && fun[paramsField][0].name === null && fun[paramsField][0].typeAnnotation && flowTypeAnnotations.indexOf(fun[paramsField][0].typeAnnotation.type) !== -1 && !(fun[paramsField][0].typeAnnotation.type === "GenericTypeAnnotation" && fun[paramsField][0].typeAnnotation.typeParameters) && !fun.rest;
+  var isFlowShorthandWithOneArg = (isObjectTypePropertyAFunction(parent) || isTypeAnnotationAFunction(parent) || parent.type === "TypeAlias" || parent.type === "UnionTypeAnnotation" || parent.type === "TSUnionType" || parent.type === "IntersectionTypeAnnotation" || parent.type === "FunctionTypeAnnotation" && parent.returnType === fun) && fun[paramsField].length === 1 && fun[paramsField][0].name === null && fun[paramsField][0].typeAnnotation && fun.typeParameters === null && flowTypeAnnotations.indexOf(fun[paramsField][0].typeAnnotation.type) !== -1 && !(fun[paramsField][0].typeAnnotation.type === "GenericTypeAnnotation" && fun[paramsField][0].typeAnnotation.typeParameters) && !fun.rest;
 
   if (isFlowShorthandWithOneArg) {
     return concat$2(printed);
@@ -6096,7 +6178,7 @@ function printExportDeclaration(path$$1, options, print) {
         var defaultSpecifiers = [];
         var namespaceSpecifiers = [];
 
-        path$$1.map(function (specifierPath) {
+        path$$1.each(function (specifierPath) {
           var specifierType = path$$1.getValue().type;
           if (specifierType === "ExportSpecifier") {
             specifiers.push(print(specifierPath));
@@ -6704,8 +6786,13 @@ function printJSXElement(path$$1, options, print) {
     // whitespace as `{" "}` when outputting this element over multiple lines.
     if (child === jsxWhitespace) {
       if (i === 1 && children[i - 1] === "") {
+        if (children.length === 2) {
+          // Solitary whitespace
+          multilineChildren.push(rawJsxWhitespace);
+          return;
+        }
         // Leading whitespace
-        multilineChildren.push(rawJsxWhitespace);
+        multilineChildren.push(concat$2([rawJsxWhitespace, hardline$2]));
         return;
       } else if (i === children.length - 1) {
         // Trailing whitespace
@@ -6805,7 +6892,7 @@ function printBinaryishExpressions(path$$1, print, options, isNested, isInsidePa
     // precedence level and should be treated as a separate group, so
     // print them normally. (This doesn't hold for the `**` operator,
     // which is unique in that it is right-associative.)
-    if (util$4.getPrecedence(node.left.operator) === util$4.getPrecedence(node.operator) && node.operator !== "**") {
+    if (util$4.shouldFlatten(node.operator, node.left.operator)) {
       // Flatten them out by recursively calling this function.
       parts = parts.concat(path$$1.call(function (left) {
         return printBinaryishExpressions(left, print, options,
@@ -7711,7 +7798,475 @@ function printDocToString$1(doc, options) {
 
 var docPrinter = { printDocToString: printDocToString$1 };
 
-var index$30 = {
+var index$26 = createCommonjsModule(function (module) {
+  'use strict';
+
+  function assembleStyles() {
+    var styles = {
+      modifiers: {
+        reset: [0, 0],
+        bold: [1, 22], // 21 isn't widely supported and 22 does the same thing
+        dim: [2, 22],
+        italic: [3, 23],
+        underline: [4, 24],
+        inverse: [7, 27],
+        hidden: [8, 28],
+        strikethrough: [9, 29]
+      },
+      colors: {
+        black: [30, 39],
+        red: [31, 39],
+        green: [32, 39],
+        yellow: [33, 39],
+        blue: [34, 39],
+        magenta: [35, 39],
+        cyan: [36, 39],
+        white: [37, 39],
+        gray: [90, 39]
+      },
+      bgColors: {
+        bgBlack: [40, 49],
+        bgRed: [41, 49],
+        bgGreen: [42, 49],
+        bgYellow: [43, 49],
+        bgBlue: [44, 49],
+        bgMagenta: [45, 49],
+        bgCyan: [46, 49],
+        bgWhite: [47, 49]
+      }
+    };
+
+    // fix humans
+    styles.colors.grey = styles.colors.gray;
+
+    Object.keys(styles).forEach(function (groupName) {
+      var group = styles[groupName];
+
+      Object.keys(group).forEach(function (styleName) {
+        var style = group[styleName];
+
+        styles[styleName] = group[styleName] = {
+          open: '\x1B[' + style[0] + 'm',
+          close: '\x1B[' + style[1] + 'm'
+        };
+      });
+
+      Object.defineProperty(styles, groupName, {
+        value: group,
+        enumerable: false
+      });
+    });
+
+    return styles;
+  }
+
+  Object.defineProperty(module, 'exports', {
+    enumerable: true,
+    get: assembleStyles
+  });
+});
+
+var argv$1 = process.argv;
+
+var terminator$1 = argv$1.indexOf('--');
+var hasFlag$1 = function hasFlag$1(flag) {
+  flag = '--' + flag;
+  var pos = argv$1.indexOf(flag);
+  return pos !== -1 && (terminator$1 !== -1 ? pos < terminator$1 : true);
+};
+
+var index$28 = function () {
+  if ('FORCE_COLOR' in process.env) {
+    return true;
+  }
+
+  if (hasFlag$1('no-color') || hasFlag$1('no-colors') || hasFlag$1('color=false')) {
+    return false;
+  }
+
+  if (hasFlag$1('color') || hasFlag$1('colors') || hasFlag$1('color=true') || hasFlag$1('color=always')) {
+    return true;
+  }
+
+  if (process.stdout && !process.stdout.isTTY) {
+    return false;
+  }
+
+  if (process.platform === 'win32') {
+    return true;
+  }
+
+  if ('COLORTERM' in process.env) {
+    return true;
+  }
+
+  if (process.env.TERM === 'dumb') {
+    return false;
+  }
+
+  if (/^screen|^xterm|^vt100|color|ansi|cygwin|linux/i.test(process.env.TERM)) {
+    return true;
+  }
+
+  return false;
+}();
+
+var escapeStringRegexp$1 = index$10;
+var ansiStyles$1 = index$26;
+var stripAnsi$1 = index$14;
+var hasAnsi$1 = index$18;
+var supportsColor$1 = index$28;
+var defineProps$1 = Object.defineProperties;
+var isSimpleWindowsTerm$1 = process.platform === 'win32' && !/^xterm/i.test(process.env.TERM);
+
+function Chalk$1(options) {
+  // detect mode if not set manually
+  this.enabled = !options || options.enabled === undefined ? supportsColor$1 : options.enabled;
+}
+
+// use bright blue on Windows as the normal blue color is illegible
+if (isSimpleWindowsTerm$1) {
+  ansiStyles$1.blue.open = '\x1B[94m';
+}
+
+var styles$1 = function () {
+  var ret = {};
+
+  Object.keys(ansiStyles$1).forEach(function (key) {
+    ansiStyles$1[key].closeRe = new RegExp(escapeStringRegexp$1(ansiStyles$1[key].close), 'g');
+
+    ret[key] = {
+      get: function get() {
+        return build$1.call(this, this._styles.concat(key));
+      }
+    };
+  });
+
+  return ret;
+}();
+
+var proto$1 = defineProps$1(function chalk() {}, styles$1);
+
+function build$1(_styles) {
+  var builder = function builder() {
+    return applyStyle$1.apply(builder, arguments);
+  };
+
+  builder._styles = _styles;
+  builder.enabled = this.enabled;
+  // __proto__ is used because we must return a function, but there is
+  // no way to create a function with a different prototype.
+  /* eslint-disable no-proto */
+  builder.__proto__ = proto$1;
+
+  return builder;
+}
+
+function applyStyle$1() {
+  // support varags, but simply cast to string in case there's only one arg
+  var args = arguments;
+  var argsLen = args.length;
+  var str = argsLen !== 0 && String(arguments[0]);
+
+  if (argsLen > 1) {
+    // don't slice `arguments`, it prevents v8 optimizations
+    for (var a = 1; a < argsLen; a++) {
+      str += ' ' + args[a];
+    }
+  }
+
+  if (!this.enabled || !str) {
+    return str;
+  }
+
+  var nestedStyles = this._styles;
+  var i = nestedStyles.length;
+
+  // Turns out that on Windows dimmed gray text becomes invisible in cmd.exe,
+  // see https://github.com/chalk/chalk/issues/58
+  // If we're on Windows and we're dealing with a gray color, temporarily make 'dim' a noop.
+  var originalDim = ansiStyles$1.dim.open;
+  if (isSimpleWindowsTerm$1 && (nestedStyles.indexOf('gray') !== -1 || nestedStyles.indexOf('grey') !== -1)) {
+    ansiStyles$1.dim.open = '';
+  }
+
+  while (i--) {
+    var code = ansiStyles$1[nestedStyles[i]];
+
+    // Replace any instances already present with a re-opening code
+    // otherwise only the part of the string until said closing code
+    // will be colored, and the rest will simply be 'plain'.
+    str = code.open + str.replace(code.closeRe, code.open) + code.close;
+  }
+
+  // Reset the original 'dim' if we changed it to work around the Windows dimmed gray issue.
+  ansiStyles$1.dim.open = originalDim;
+
+  return str;
+}
+
+function init$1() {
+  var ret = {};
+
+  Object.keys(styles$1).forEach(function (name) {
+    ret[name] = {
+      get: function get() {
+        return build$1.call(this, [name]);
+      }
+    };
+  });
+
+  return ret;
+}
+
+defineProps$1(Chalk$1.prototype, init$1());
+
+var index$24 = new Chalk$1();
+var styles_1$1 = ansiStyles$1;
+var hasColor$1 = hasAnsi$1;
+var stripColor$1 = stripAnsi$1;
+var supportsColor_1$1 = supportsColor$1;
+
+index$24.styles = styles_1$1;
+index$24.hasColor = hasColor$1;
+index$24.stripColor = stripColor$1;
+index$24.supportsColor = supportsColor_1$1;
+
+var index$34 = createCommonjsModule(function (module) {
+  'use strict';
+
+  function assembleStyles() {
+    var styles = {
+      modifiers: {
+        reset: [0, 0],
+        bold: [1, 22], // 21 isn't widely supported and 22 does the same thing
+        dim: [2, 22],
+        italic: [3, 23],
+        underline: [4, 24],
+        inverse: [7, 27],
+        hidden: [8, 28],
+        strikethrough: [9, 29]
+      },
+      colors: {
+        black: [30, 39],
+        red: [31, 39],
+        green: [32, 39],
+        yellow: [33, 39],
+        blue: [34, 39],
+        magenta: [35, 39],
+        cyan: [36, 39],
+        white: [37, 39],
+        gray: [90, 39]
+      },
+      bgColors: {
+        bgBlack: [40, 49],
+        bgRed: [41, 49],
+        bgGreen: [42, 49],
+        bgYellow: [43, 49],
+        bgBlue: [44, 49],
+        bgMagenta: [45, 49],
+        bgCyan: [46, 49],
+        bgWhite: [47, 49]
+      }
+    };
+
+    // fix humans
+    styles.colors.grey = styles.colors.gray;
+
+    Object.keys(styles).forEach(function (groupName) {
+      var group = styles[groupName];
+
+      Object.keys(group).forEach(function (styleName) {
+        var style = group[styleName];
+
+        styles[styleName] = group[styleName] = {
+          open: '\x1B[' + style[0] + 'm',
+          close: '\x1B[' + style[1] + 'm'
+        };
+      });
+
+      Object.defineProperty(styles, groupName, {
+        value: group,
+        enumerable: false
+      });
+    });
+
+    return styles;
+  }
+
+  Object.defineProperty(module, 'exports', {
+    enumerable: true,
+    get: assembleStyles
+  });
+});
+
+var argv$2 = process.argv;
+
+var terminator$2 = argv$2.indexOf('--');
+var hasFlag$2 = function hasFlag$2(flag) {
+  flag = '--' + flag;
+  var pos = argv$2.indexOf(flag);
+  return pos !== -1 && (terminator$2 !== -1 ? pos < terminator$2 : true);
+};
+
+var index$36 = function () {
+  if ('FORCE_COLOR' in process.env) {
+    return true;
+  }
+
+  if (hasFlag$2('no-color') || hasFlag$2('no-colors') || hasFlag$2('color=false')) {
+    return false;
+  }
+
+  if (hasFlag$2('color') || hasFlag$2('colors') || hasFlag$2('color=true') || hasFlag$2('color=always')) {
+    return true;
+  }
+
+  if (process.stdout && !process.stdout.isTTY) {
+    return false;
+  }
+
+  if (process.platform === 'win32') {
+    return true;
+  }
+
+  if ('COLORTERM' in process.env) {
+    return true;
+  }
+
+  if (process.env.TERM === 'dumb') {
+    return false;
+  }
+
+  if (/^screen|^xterm|^vt100|color|ansi|cygwin|linux/i.test(process.env.TERM)) {
+    return true;
+  }
+
+  return false;
+}();
+
+var escapeStringRegexp$2 = index$10;
+var ansiStyles$2 = index$34;
+var stripAnsi$2 = index$14;
+var hasAnsi$2 = index$18;
+var supportsColor$2 = index$36;
+var defineProps$2 = Object.defineProperties;
+var isSimpleWindowsTerm$2 = process.platform === 'win32' && !/^xterm/i.test(process.env.TERM);
+
+function Chalk$2(options) {
+  // detect mode if not set manually
+  this.enabled = !options || options.enabled === undefined ? supportsColor$2 : options.enabled;
+}
+
+// use bright blue on Windows as the normal blue color is illegible
+if (isSimpleWindowsTerm$2) {
+  ansiStyles$2.blue.open = '\x1B[94m';
+}
+
+var styles$2 = function () {
+  var ret = {};
+
+  Object.keys(ansiStyles$2).forEach(function (key) {
+    ansiStyles$2[key].closeRe = new RegExp(escapeStringRegexp$2(ansiStyles$2[key].close), 'g');
+
+    ret[key] = {
+      get: function get() {
+        return build$2.call(this, this._styles.concat(key));
+      }
+    };
+  });
+
+  return ret;
+}();
+
+var proto$2 = defineProps$2(function chalk() {}, styles$2);
+
+function build$2(_styles) {
+  var builder = function builder() {
+    return applyStyle$2.apply(builder, arguments);
+  };
+
+  builder._styles = _styles;
+  builder.enabled = this.enabled;
+  // __proto__ is used because we must return a function, but there is
+  // no way to create a function with a different prototype.
+  /* eslint-disable no-proto */
+  builder.__proto__ = proto$2;
+
+  return builder;
+}
+
+function applyStyle$2() {
+  // support varags, but simply cast to string in case there's only one arg
+  var args = arguments;
+  var argsLen = args.length;
+  var str = argsLen !== 0 && String(arguments[0]);
+
+  if (argsLen > 1) {
+    // don't slice `arguments`, it prevents v8 optimizations
+    for (var a = 1; a < argsLen; a++) {
+      str += ' ' + args[a];
+    }
+  }
+
+  if (!this.enabled || !str) {
+    return str;
+  }
+
+  var nestedStyles = this._styles;
+  var i = nestedStyles.length;
+
+  // Turns out that on Windows dimmed gray text becomes invisible in cmd.exe,
+  // see https://github.com/chalk/chalk/issues/58
+  // If we're on Windows and we're dealing with a gray color, temporarily make 'dim' a noop.
+  var originalDim = ansiStyles$2.dim.open;
+  if (isSimpleWindowsTerm$2 && (nestedStyles.indexOf('gray') !== -1 || nestedStyles.indexOf('grey') !== -1)) {
+    ansiStyles$2.dim.open = '';
+  }
+
+  while (i--) {
+    var code = ansiStyles$2[nestedStyles[i]];
+
+    // Replace any instances already present with a re-opening code
+    // otherwise only the part of the string until said closing code
+    // will be colored, and the rest will simply be 'plain'.
+    str = code.open + str.replace(code.closeRe, code.open) + code.close;
+  }
+
+  // Reset the original 'dim' if we changed it to work around the Windows dimmed gray issue.
+  ansiStyles$2.dim.open = originalDim;
+
+  return str;
+}
+
+function init$2() {
+  var ret = {};
+
+  Object.keys(styles$2).forEach(function (name) {
+    ret[name] = {
+      get: function get() {
+        return build$2.call(this, [name]);
+      }
+    };
+  });
+
+  return ret;
+}
+
+defineProps$2(Chalk$2.prototype, init$2());
+
+var index$32 = new Chalk$2();
+var styles_1$2 = ansiStyles$2;
+var hasColor$2 = hasAnsi$2;
+var stripColor$2 = stripAnsi$2;
+var supportsColor_1$2 = supportsColor$2;
+
+index$32.styles = styles_1$2;
+index$32.hasColor = hasColor$2;
+index$32.stripColor = stripColor$2;
+index$32.supportsColor = supportsColor_1$2;
+
+var index$44 = {
   "aliceblue": [240, 248, 255],
   "antiquewhite": [250, 235, 215],
   "aqua": [0, 255, 255],
@@ -7864,7 +8419,7 @@ var index$30 = {
 
 var conversions$1 = createCommonjsModule(function (module) {
   /* MIT license */
-  var cssKeywords = index$30;
+  var cssKeywords = index$44;
 
   // NOTE: conversions should only return primitive values (i.e. arrays, or
   //       values that give correct `typeof` results).
@@ -8882,12 +9437,12 @@ models.forEach(function (fromModel) {
   });
 });
 
-var index$28 = convert;
+var index$42 = convert;
 
-var index$26 = createCommonjsModule(function (module) {
+var index$40 = createCommonjsModule(function (module) {
   'use strict';
 
-  var colorConvert = index$28;
+  var colorConvert = index$42;
 
   var wrapAnsi16 = function wrapAnsi16(fn, offset) {
     return function () {
@@ -9067,7 +9622,7 @@ var asymmetricMatcher = Symbol.for('jest.asymmetricMatcher'); /**
                                                                * LICENSE file in the root directory of this source tree. An additional grant
                                                                * of patent rights can be found in the PATENTS file in the same directory.
                                                                *
-                                                               *
+                                                               * 
                                                                */var SPACE = ' ';
 var ArrayContaining = function (_Array) {
   _inherits(ArrayContaining, _Array);
@@ -9123,16 +9678,16 @@ var test = function test(object) {
 
 var AsymmetricMatcher$1 = { print: print$1, test: test };
 
-var ansiRegex$2 = index$14; /**
+var ansiRegex$2 = index$16; /**
                                         * Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
                                         *
                                         * This source code is licensed under the BSD-style license found in the
                                         * LICENSE file in the root directory of this source tree. An additional grant
                                         * of patent rights can be found in the PATENTS file in the same directory.
                                         *
-                                        *
+                                        * 
                                         */var toHumanReadableAnsi = function toHumanReadableAnsi(text) {
-  var style = index$26;return text.replace(ansiRegex$2(), function (match, offset, string) {
+  var style = index$40;return text.replace(ansiRegex$2(), function (match, offset, string) {
     switch (match) {case style.red.close:case style.green.close:case style.reset.open:
       case style.reset.close:
         return '</>';
@@ -9172,7 +9727,7 @@ var escapeHTML = escapeHTML_1; /**
                                                * LICENSE file in the root directory of this source tree. An additional grant
                                                * of patent rights can be found in the PATENTS file in the same directory.
                                                *
-                                               *
+                                               * 
                                                */
 
 var HTML_ELEMENT_REGEXP = /(HTML\w*?Element)|Text|Comment/;
@@ -9274,7 +9829,7 @@ var IMMUTABLE_NAMESPACE = 'Immutable.'; /**
                                          * LICENSE file in the root directory of this source tree. An additional grant
                                          * of patent rights can be found in the PATENTS file in the same directory.
                                          *
-                                         *
+                                         * 
                                          */var SPACE$1 = ' ';var addKey = function addKey(isMap, key) {
   return isMap ? key + ': ' : '';
 };var addFinalEdgeSpacing = function addFinalEdgeSpacing(length, edgeSpacing) {
@@ -9307,7 +9862,7 @@ var printImmutable = printImmutable_1; /**
                                                        * LICENSE file in the root directory of this source tree. An additional grant
                                                        * of patent rights can be found in the PATENTS file in the same directory.
                                                        *
-                                                       *
+                                                       * 
                                                        */var IS_LIST = '@@__IMMUTABLE_LIST__@@';var test$3 = function test$3(maybeList) {
   return !!(maybeList && maybeList[IS_LIST]);
 };var print$4 = function print$4(val, print, indent, opts, colors) {
@@ -9323,7 +9878,7 @@ var printImmutable$2 = printImmutable_1; /**
                                                        * LICENSE file in the root directory of this source tree. An additional grant
                                                        * of patent rights can be found in the PATENTS file in the same directory.
                                                        *
-                                                       *
+                                                       * 
                                                        */var IS_SET = '@@__IMMUTABLE_SET__@@';var IS_ORDERED = '@@__IMMUTABLE_ORDERED__@@';var test$4 = function test$4(maybeSet) {
   return !!(maybeSet && maybeSet[IS_SET] && !maybeSet[IS_ORDERED]);
 };var print$5 = function print$5(val, print, indent, opts, colors) {
@@ -9339,7 +9894,7 @@ var printImmutable$3 = printImmutable_1; /**
                                                        * LICENSE file in the root directory of this source tree. An additional grant
                                                        * of patent rights can be found in the PATENTS file in the same directory.
                                                        *
-                                                       *
+                                                       * 
                                                        */var IS_MAP = '@@__IMMUTABLE_MAP__@@';var IS_ORDERED$1 = '@@__IMMUTABLE_ORDERED__@@';var test$5 = function test$5(maybeMap) {
   return !!(maybeMap && maybeMap[IS_MAP] && !maybeMap[IS_ORDERED$1]);
 };var print$6 = function print$6(val, print, indent, opts, colors) {
@@ -9355,7 +9910,7 @@ var printImmutable$4 = printImmutable_1; /**
                                                        * LICENSE file in the root directory of this source tree. An additional grant
                                                        * of patent rights can be found in the PATENTS file in the same directory.
                                                        *
-                                                       *
+                                                       * 
                                                        */var IS_STACK = '@@__IMMUTABLE_STACK__@@';var test$6 = function test$6(maybeStack) {
   return !!(maybeStack && maybeStack[IS_STACK]);
 };var print$7 = function print$7(val, print, indent, opts, colors) {
@@ -9371,7 +9926,7 @@ var printImmutable$5 = printImmutable_1; /**
                                                        * LICENSE file in the root directory of this source tree. An additional grant
                                                        * of patent rights can be found in the PATENTS file in the same directory.
                                                        *
-                                                       *
+                                                       * 
                                                        */var IS_SET$1 = '@@__IMMUTABLE_SET__@@';var IS_ORDERED$2 = '@@__IMMUTABLE_ORDERED__@@';var test$7 = function test$7(maybeOrderedSet) {
   return maybeOrderedSet && maybeOrderedSet[IS_SET$1] && maybeOrderedSet[IS_ORDERED$2];
 };var print$8 = function print$8(val, print, indent, opts, colors) {
@@ -9387,7 +9942,7 @@ var printImmutable$6 = printImmutable_1; /**
                                                        * LICENSE file in the root directory of this source tree. An additional grant
                                                        * of patent rights can be found in the PATENTS file in the same directory.
                                                        *
-                                                       *
+                                                       * 
                                                        */var IS_MAP$1 = '@@__IMMUTABLE_MAP__@@';var IS_ORDERED$3 = '@@__IMMUTABLE_ORDERED__@@';var test$8 = function test$8(maybeOrderedMap) {
   return maybeOrderedMap && maybeOrderedMap[IS_MAP$1] && maybeOrderedMap[IS_ORDERED$3];
 };var print$9 = function print$9(val, print, indent, opts, colors) {
@@ -9405,7 +9960,7 @@ var escapeHTML$2 = escapeHTML_1; /**
                                                * LICENSE file in the root directory of this source tree. An additional grant
                                                * of patent rights can be found in the PATENTS file in the same directory.
                                                *
-                                               *
+                                               * 
                                                */var reactElement = Symbol.for('react.element');function traverseChildren(opaqueChildren, cb) {
   if (Array.isArray(opaqueChildren)) {
     opaqueChildren.forEach(function (child) {
@@ -9495,7 +10050,7 @@ var escapeHTML$3 = escapeHTML_1; /**
                                                * LICENSE file in the root directory of this source tree. An additional grant
                                                * of patent rights can be found in the PATENTS file in the same directory.
                                                *
-                                               *
+                                               * 
                                                */var reactTestInstance = Symbol.for('react.test.json');function printChildren$3(children, print, indent, colors, opts) {
   return children.map(function (child) {
     return printInstance(child, print, indent, colors, opts);
@@ -9555,14 +10110,14 @@ var test$10 = function test$10(object) {
 
 var ReactTestComponent = { print: print$11, test: test$10 };
 
-var style = index$26; /**
+var style = index$40; /**
                                      * Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
                                      *
                                      * This source code is licensed under the BSD-style license found in the
                                      * LICENSE file in the root directory of this source tree. An additional grant
                                      * of patent rights can be found in the PATENTS file in the same directory.
                                      *
-                                     *
+                                     * 
                                      */
 
 var toString = Object.prototype.toString;
@@ -10008,10 +10563,10 @@ prettyFormat$1.plugins = {
   ReactElement: ReactElement$1,
   ReactTestComponent: ReactTestComponent };
 
-var index$24 = prettyFormat$1;
+var index$38 = prettyFormat$1;
 
-var chalk$1 = index$6;
-var prettyFormat = index$24;var _require$plugins = index$24.plugins;var AsymmetricMatcher = _require$plugins.AsymmetricMatcher;var ReactElement = _require$plugins.ReactElement;var HTMLElement = _require$plugins.HTMLElement;var Immutable = _require$plugins.Immutable;
+var chalk$1 = index$32;
+var prettyFormat = index$38;var _require$plugins = index$38.plugins;var AsymmetricMatcher = _require$plugins.AsymmetricMatcher;var ReactElement = _require$plugins.ReactElement;var HTMLElement = _require$plugins.HTMLElement;var Immutable = _require$plugins.Immutable;
 
 var PLUGINS = [AsymmetricMatcher, ReactElement, HTMLElement].concat(Immutable);
 
@@ -10130,7 +10685,7 @@ var matcherHint = function matcherHint(matcherName) {
   return chalk$1.dim('expect' + (isDirectExpectCall ? '' : '(')) + RECEIVED_COLOR(received) + chalk$1.dim((isDirectExpectCall ? '' : ')') + matcherName + '(') + EXPECTED_COLOR(expected) + (secondArgument ? ', ' + EXPECTED_COLOR(secondArgument) : '') + chalk$1.dim(')');
 };
 
-var index$22 = {
+var index$30 = {
   EXPECTED_BG: EXPECTED_BG,
   EXPECTED_COLOR: EXPECTED_COLOR,
   RECEIVED_BG: RECEIVED_BG,
@@ -10152,7 +10707,7 @@ var index$22 = {
 var arr = [];
 var charCodeCache = [];
 
-var index$32 = function index$32(a, b) {
+var index$46 = function index$46(a, b) {
   if (a === b) {
     return 0;
   }
@@ -10233,14 +10788,14 @@ var index$32 = function index$32(a, b) {
   return ret;
 };
 
-var chalk$2 = index$6;
+var chalk$2 = index$24;
 var BULLET = chalk$2.bold('\u25CF');
 var DEPRECATION = BULLET + ' Deprecation Warning';
 var ERROR$1 = BULLET + ' Validation Error';
 var WARNING = BULLET + ' Validation Warning';
 
 var format$2 = function format$2(value) {
-  return typeof value === 'function' ? value.toString() : index$24(value, { min: true });
+  return typeof value === 'function' ? value.toString() : index$38(value, { min: true });
 };
 
 var ValidationError$1 = function (_Error) {
@@ -10268,7 +10823,7 @@ var logValidationWarning = function logValidationWarning(name, message, comment)
 };
 
 var createDidYouMeanMessage = function createDidYouMeanMessage(unrecognized, allowedOptions) {
-  var leven = index$32;
+  var leven = index$46;
   var suggestion = allowedOptions.find(function (option) {
     var steps = leven(option, unrecognized);
     return steps < 3;
@@ -10286,15 +10841,15 @@ var utils$2 = {
   format: format$2,
   logValidationWarning: logValidationWarning };
 
-var chalk = index$6; /**
+var chalk = index$24; /**
                                * Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
                                *
                                * This source code is licensed under the BSD-style license found in the
                                * LICENSE file in the root directory of this source tree. An additional grant
                                * of patent rights can be found in the PATENTS file in the same directory.
                                *
-                               *
-                               */var _require = index$22;var getType = _require.getType;var _require2 = utils$2;var format$1 = _require2.format;var ValidationError = _require2.ValidationError;var ERROR = _require2.ERROR;var errorMessage = function errorMessage(option, received, defaultValue, options) {
+                               * 
+                               */var _require = index$30;var getType = _require.getType;var _require2 = utils$2;var format$1 = _require2.format;var ValidationError = _require2.ValidationError;var ERROR = _require2.ERROR;var errorMessage = function errorMessage(option, received, defaultValue, options) {
   var message = '  Option ' + chalk.bold('"' + option + '"') + ' must be of type:\n    ' + chalk.bold.green(getType(defaultValue)) + '\n  but instead received:\n    ' + chalk.bold.red(getType(received)) + '\n\n  Example:\n  {\n    ' + chalk.bold('"' + option + '"') + ': ' + chalk.bold(format$1(defaultValue)) + '\n  }';
 
   var comment = options.comment;
@@ -10314,7 +10869,7 @@ var _require$2 = utils$2;var logValidationWarning$1 = _require$2.logValidationWa
                                                                                                                                   * LICENSE file in the root directory of this source tree. An additional grant
                                                                                                                                   * of patent rights can be found in the PATENTS file in the same directory.
                                                                                                                                   *
-                                                                                                                                  *
+                                                                                                                                  * 
                                                                                                                                   */var deprecationMessage = function deprecationMessage(message, options) {
   var comment = options.comment;var name = options.title && options.title.deprecation || DEPRECATION$2;logValidationWarning$1(name, message, comment);
 };
@@ -10331,14 +10886,14 @@ var deprecationWarning$1 = function deprecationWarning$1(config, option, depreca
 var deprecated = {
   deprecationWarning: deprecationWarning$1 };
 
-var chalk$3 = index$6; /**
+var chalk$3 = index$24; /**
                                * Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
                                *
                                * This source code is licensed under the BSD-style license found in the
                                * LICENSE file in the root directory of this source tree. An additional grant
                                * of patent rights can be found in the PATENTS file in the same directory.
                                *
-                               *
+                               * 
                                */var _require$3 = utils$2;var format$3 = _require$3.format;var logValidationWarning$2 = _require$3.logValidationWarning;var createDidYouMeanMessage$1 = _require$3.createDidYouMeanMessage;var WARNING$2 = _require$3.WARNING;var unknownOptionWarning$1 = function unknownOptionWarning$1(config, exampleConfig, option, options) {
   var didYouMean = createDidYouMeanMessage$1(option, Object.keys(exampleConfig));
 
@@ -10378,7 +10933,7 @@ var config = {
                                                             * LICENSE file in the root directory of this source tree. An additional grant
                                                             * of patent rights can be found in the PATENTS file in the same directory.
                                                             *
-                                                            *
+                                                            * 
                                                             */var exampleConfig$2 = config;
 
 var toString$1 = Object.prototype.toString;
@@ -10396,7 +10951,7 @@ var _require$1 = deprecated;var deprecationWarning = _require$1.deprecationWarni
                                                                                                 * LICENSE file in the root directory of this source tree. An additional grant
                                                                                                 * of patent rights can be found in the PATENTS file in the same directory.
                                                                                                 *
-                                                                                                *
+                                                                                                * 
                                                                                                 */var _require2$1 = warnings;var unknownOptionWarning = _require2$1.unknownOptionWarning;var _require3 = errors;var errorMessage$1 = _require3.errorMessage;var exampleConfig$1 = exampleConfig$2;var validationCondition = condition;var _require4 = utils$2;var ERROR$2 = _require4.ERROR;var DEPRECATION$1 = _require4.DEPRECATION;var WARNING$1 = _require4.WARNING;var defaultConfig$1 = { comment: '',
   condition: validationCondition,
   deprecate: deprecationWarning,
@@ -10417,7 +10972,7 @@ var defaultConfig = defaultConfig$1; /**
                                                  * LICENSE file in the root directory of this source tree. An additional grant
                                                  * of patent rights can be found in the PATENTS file in the same directory.
                                                  *
-                                                 *
+                                                 * 
                                                  */var _validate = function _validate(config, options) {
   var hasDeprecationWarnings = false;for (var key in config) {
     if (options.deprecatedConfig && key in options.deprecatedConfig && typeof options.deprecate === 'function') {
@@ -10448,7 +11003,7 @@ var validate$1 = function validate$1(config, options) {
 
 var validate_1 = validate$1;
 
-var index$20 = {
+var index$22 = {
   ValidationError: errors.ValidationError,
   createDidYouMeanMessage: utils$2.createDidYouMeanMessage,
   format: utils$2.format,
@@ -10463,7 +11018,7 @@ var deprecated$2 = {
 
 var deprecated_1 = deprecated$2;
 
-var validate = index$20.validate;
+var validate = index$22.validate;
 var deprecatedConfig = deprecated_1;
 
 var defaults = {
@@ -10644,10 +11199,11 @@ var docDebug = {
   }
 };
 
-var require$$1$12 = _package$1 && _package$1['default'] || _package$1;
+var require$$2$10 = _package$1 && _package$1['default'] || _package$1;
 
+var stripBom = index$2;
 var comments = comments$1;
-var version = require$$1$12.version;
+var version = require$$2$10.version;
 var printAstToDoc = printer.printAstToDoc;
 var util = util$2;
 var _printDocToString = docPrinter.printDocToString;
@@ -10696,6 +11252,7 @@ function ensureAllCommentsPrinted(astComments) {
 }
 
 function _formatWithCursor(text, opts, addAlignmentSize) {
+  text = stripBom(text);
   addAlignmentSize = addAlignmentSize || 0;
 
   var ast = parser.parse(text, opts);

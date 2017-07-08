@@ -5,6 +5,5 @@ npm-debug.log
 /test.ts
 /test.css
 /.vscode
-/dist
 /website/node_modules
 .DS_Store
